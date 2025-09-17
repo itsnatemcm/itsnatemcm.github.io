@@ -76,113 +76,176 @@
   </div>
 
   <script>
-    // ========= State =========
-    const batch = [];
-    const batchBody = document.getElementById('batchBody');
-    const statusEl = document.getElementById('status');
+  // ========= State =========
+  const batch = [];
+  const batchBody = document.getElementById('batchBody');
+  const statusEl = document.getElementById('status');
 
-    function render() {
-      batchBody.innerHTML = '';
-      batch.forEach((row, i) => {
-        const tr = document.createElement('tr');
-        tr.className = "border-b";
-        tr.innerHTML = `
-          <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Description}"></td>
-          <td class="py-2 pr-4"><input type="number" step="0.1" class="w-24 p-1 border rounded" value="${row.Quantity}"></td>
-          <td class="py-2 pr-4">
-            <select class="p-1 border rounded">
-              <option ${row.Type==='Tool'?'selected':''}>Tool</option>
-              <option ${row.Type==='Part'?'selected':''}>Part</option>
-              <option ${row.Type==='Fluid'?'selected':''}>Fluid</option>
-              <option ${row.Type==='Other'?'selected':''}>Other</option>
-            </select>
-          </td>
-          <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Notes||''}"></td>
-          <td class="py-2">
-            <button class="px-3 py-1 rounded bg-red-600 text-white">Delete</button>
-          </td>
-        `;
-        // wire up edit + delete
-        const inputs = tr.querySelectorAll('input, select');
-        inputs[0].addEventListener('input', e => batch[i].Description = e.target.value);
-        inputs[1].addEventListener('input', e => batch[i].Quantity = Number(e.target.value || 0));
-        inputs[2].addEventListener('change', e => batch[i].Type = e.target.value);
-        inputs[3].addEventListener('input', e => batch[i].Notes = e.target.value);
-        tr.querySelector('button').addEventListener('click', () => { batch.splice(i,1); render(); });
-        batchBody.appendChild(tr);
+  function render() {
+    batchBody.innerHTML = '';
+    batch.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.className = "border-b";
+      tr.innerHTML = `
+        <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Description ?? ''}"></td>
+        <td class="py-2 pr-4"><input type="number" step="0.1" class="w-24 p-1 border rounded" value="${row.Quantity ?? ''}"></td>
+        <td class="py-2 pr-4">
+          <select class="p-1 border rounded">
+            <option ${row.Type==='Tool'?'selected':''}>Tool</option>
+            <option ${row.Type==='Part'?'selected':''}>Part</option>
+            <option ${row.Type==='Fluid'?'selected':''}>Fluid</option>
+            <option ${row.Type==='Other'?'selected':''}>Other</option>
+          </select>
+        </td>
+        <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Notes ?? ''}"></td>
+        <td class="py-2">
+          <button class="px-3 py-1 rounded bg-red-600 text-white">Delete</button>
+        </td>
+      `;
+      // wire up edit + delete
+      const inputs = tr.querySelectorAll('input, select');
+      inputs[0].addEventListener('input', e => batch[i].Description = e.target.value);
+      inputs[1].addEventListener('input', e => {
+        const v = e.target.value;
+        batch[i].Quantity = v === '' ? '' : Number(v);
       });
-    }
-
-    // ========= Add single =========
-    document.getElementById('addBtn').addEventListener('click', () => {
-      const desc = document.getElementById('desc').value.trim();
-      const qty = Number(document.getElementById('qty').value || 0);
-      const type = document.getElementById('type').value;
-      const notes = document.getElementById('notes').value.trim();
-
-      if (!desc || !qty) {
-        alert('Description and Quantity are required.');
-        return;
-      }
-      batch.push({ Description: desc, Quantity: qty, Type: type, Notes: notes });
-      document.getElementById('desc').value = '';
-      document.getElementById('qty').value = '';
-      document.getElementById('notes').value = '';
-      render();
+      inputs[2].addEventListener('change', e => batch[i].Type = e.target.value);
+      inputs[3].addEventListener('input', e => batch[i].Notes = e.target.value);
+      tr.querySelector('button').addEventListener('click', () => { batch.splice(i,1); render(); });
+      batchBody.appendChild(tr);
     });
+  }
 
-   
+  // ========= Add single =========
+  document.getElementById('addBtn').addEventListener('click', () => {
+    const desc = document.getElementById('desc').value.trim();
+    const qtyRaw = document.getElementById('qty').value;
+    const qty = qtyRaw === '' ? '' : Number(qtyRaw);
+    const type = document.getElementById('type').value;
+    const notes = document.getElementById('notes').value.trim();
 
-
-    document.getElementById('clearTextBtn').addEventListener('click', () => {
-      document.getElementById('transcript').value = '';
-    });
-
-    // ========= Speech-to-text =========
-    const micBtn = document.getElementById('micBtn');
-    const micStatus = document.getElementById('micStatus');
-    let rec;
-    if ('webkitSpeechRecognition' in window) {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      rec = new SR();
-      rec.lang = 'en-US';
-      rec.interimResults = true;
-      rec.continuous = true;
-
-      rec.onstart = () => micStatus.textContent = 'listening…';
-      rec.onerror = e => micStatus.textContent = 'error: ' + e.error;
-      rec.onend = () => micStatus.textContent = 'idle';
-      rec.onresult = (e) => {
-        let finalText = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) finalText += t + '\n';
-        }
-        if (finalText) {
-          const existing = document.getElementById('transcript').value;
-          document.getElementById('transcript').value = (existing + '\n' + finalText).trim();
-        }
-      };
-
-      micBtn.addEventListener('click', () => {
-        if (micStatus.textContent.startsWith('listening')) {
-          rec.stop();
-        } else {
-          rec.start();
-        }
-      });
-    } else {
-      micBtn.disabled = true;
-      micStatus.textContent = 'speech not supported in this browser';
+    if (!desc) {
+      alert('Description is required.');
+      return;
     }
+    // Quantity optional here; AI can infer if blank
+    batch.push({ Description: desc, Quantity: qty, Type: type, Notes: notes });
+    document.getElementById('desc').value = '';
+    document.getElementById('qty').value = '';
+    document.getElementById('notes').value = '';
+    render();
+  });
 
-    // ========= Send to proxy =========
-    document.getElementById('sendBtn').addEventListener('click', async () => {
-    const statusEl = document.getElementById('status');
+  // ========= Add from Text (UNPARSED) =========
+  // Takes whatever is in the textarea and adds each line (or comma-separated chunk) as a raw item.
+  document.getElementById('quickParseBtn').addEventListener('click', () => {
     const text = document.getElementById('transcript').value.trim();
-    if (!text) { alert('Type or dictate items first.'); return; }
+    if (!text) return;
 
+    // Split by newlines first; if single line, also split by commas
+    let lines = text.split('\n').map(s => s.trim()).filter(Boolean);
+    if (lines.length === 1) {
+      lines = text.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    for (const line of lines) {
+      batch.push({
+        Description: line,   // raw, unparsed
+        Quantity: '',        // leave blank; AI will infer
+        Type: 'Other',       // placeholder; AI will infer
+        Notes: ''            // empty
+      });
+    }
+    // Optionally clear the textarea after adding to batch
+    document.getElementById('transcript').value = '';
+    render();
+  });
+
+  document.getElementById('clearTextBtn').addEventListener('click', () => {
+    document.getElementById('transcript').value = '';
+  });
+
+  // ========= Build raw text from batch for AI =========
+  // We turn each pending row into a natural-sounding phrase to help AI:
+  // - If Quantity present: "2 Rubber Mallet"
+  // - If Type present and not Other: append "(Tool)" hint
+  // - If Notes present: append as trailing note
+  function buildRawTextFromBatch() {
+    const parts = [];
+    for (const r of batch) {
+      const desc = (r.Description || '').trim();
+      if (!desc) continue;
+
+      const qty = (r.Quantity === '' || r.Quantity === null || typeof r.Quantity === 'undefined')
+        ? '' : String(r.Quantity);
+
+      const type = r.Type && r.Type !== 'Other' ? ` (${r.Type})` : '';
+      const notes = r.Notes ? `, ${r.Notes}` : '';
+
+      // e.g., "2 Rubber Mallet (Tool), half used"
+      const phrase = `${qty ? qty + ' ' : ''}${desc}${type}${notes}`;
+      parts.push(phrase.trim());
+    }
+    return parts.join(', ');
+  }
+
+  // ========= Speech-to-text =========
+  const micBtn = document.getElementById('micBtn');
+  const micStatus = document.getElementById('micStatus');
+  let rec;
+  if ('webkitSpeechRecognition' in window) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.continuous = true;
+
+    rec.onstart = () => micStatus.textContent = 'listening…';
+    rec.onerror = e => micStatus.textContent = 'error: ' + e.error;
+    rec.onend = () => micStatus.textContent = 'idle';
+    rec.onresult = (e) => {
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t + '\n';
+      }
+      if (finalText) {
+        const existing = document.getElementById('transcript').value;
+        document.getElementById('transcript').value = (existing + '\n' + finalText).trim();
+      }
+    };
+
+    micBtn.addEventListener('click', () => {
+      if (micStatus.textContent.startsWith('listening')) {
+        rec.stop();
+      } else {
+        rec.start();
+      }
+    });
+  } else {
+    micBtn.disabled = true;
+    micStatus.textContent = 'speech not supported in this browser';
+  }
+
+  // ========= Send to proxy (AI parses) =========
+  // If there are items in the batch, we send the batch-as-text.
+  // Otherwise, we fall back to the textarea contents.
+  document.getElementById('sendBtn').addEventListener('click', async () => {
     statusEl.textContent = 'Sending for AI parsing…';
+
+    let text = '';
+    if (batch.length > 0) {
+      text = buildRawTextFromBatch();
+    } else {
+      text = document.getElementById('transcript').value.trim();
+    }
+
+    if (!text) {
+      alert('Add items to the batch or type/dictate items first.');
+      statusEl.textContent = '';
+      return;
+    }
+
     try {
       const res = await fetch('YOUR_PROXY_URL_HERE', {
         method: 'POST',
@@ -190,24 +253,27 @@
           'Content-Type': 'application/json',
           'X-Inventory-Secret': 'YOUR_SHARED_SECRET'
         },
-        // 👇 IMPORTANT: send a STRING, not an array
-        body: JSON.stringify(text)
+        body: JSON.stringify(text)  // always a STRING so the Worker runs AI
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json().catch(()=>({}));
       statusEl.textContent = '✅ Sent! ' + (data.message || '');
-      // Optional: clear textarea on success
+
+      // Clear UI on success
       document.getElementById('transcript').value = '';
+      batch.length = 0;
+      render();
     } catch (err) {
       console.error(err);
       statusEl.textContent = '❌ Failed: ' + err.message;
     }
   });
 
-    document.getElementById('clearBtn').addEventListener('click', () => {
-      batch.length = 0;
-      render();
-    });
-  </script>
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    batch.length = 0;
+    render();
+  });
+</script>
+
 </body>
 </html>
