@@ -222,28 +222,31 @@
 
     // ========= Send to proxy =========
     document.getElementById('sendBtn').addEventListener('click', async () => {
-      if (!batch.length) { alert('No items in batch.'); return; }
-      statusEl.textContent = 'Sending…';
-      try {
-        const res = await fetch('https://garagezap.itsnatemcm.workers.dev/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Inventory-Secret': 'dontShareMEpass!@*^$!@#seXY69' // must match serverless secret
-          },
-          body: JSON.stringify(batch)
-        });
-        if (!res.ok) throw new Error('Proxy error ' + res.status);
-        const data = await res.json().catch(()=>({}));
-        statusEl.textContent = '✅ Sent! ' + (data.message || '');
-        // clear only on success:
-        batch.length = 0;
-        render();
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = '❌ Failed: ' + err.message;
-      }
-    });
+    const statusEl = document.getElementById('status');
+    const text = document.getElementById('transcript').value.trim();
+    if (!text) { alert('Type or dictate items first.'); return; }
+
+    statusEl.textContent = 'Sending for AI parsing…';
+    try {
+      const res = await fetch('YOUR_PROXY_URL_HERE', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Inventory-Secret': 'YOUR_SHARED_SECRET'
+        },
+        // 👇 IMPORTANT: send a STRING, not an array
+        body: JSON.stringify(text)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json().catch(()=>({}));
+      statusEl.textContent = '✅ Sent! ' + (data.message || '');
+      // Optional: clear textarea on success
+      document.getElementById('transcript').value = '';
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = '❌ Failed: ' + err.message;
+    }
+  });
 
     document.getElementById('clearBtn').addEventListener('click', () => {
       batch.length = 0;
