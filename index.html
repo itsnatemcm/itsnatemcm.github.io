@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Garage Inventory — Voice to Airtable</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN for quick styling (optional) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4">Garage Inventory — Voice to Airtable</h1>
+
+    <!-- Voice capture -->
+    <div class="mb-4 p-4 bg-white rounded-xl shadow">
+      <div class="flex items-center gap-3">
+        <button id="micBtn" class="px-4 py-2 rounded-xl bg-black text-white">
+          🎙️ Start Dictation
+        </button>
+        <span id="micStatus" class="text-sm text-gray-600">idle</span>
+      </div>
+      <p class="text-sm text-gray-600 mt-3">
+        Speak an item like: “two quarts of 10W-30 motor oil (Fluid)” or “Rubber mallet (Tool) quantity two”.
+      </p>
+      <textarea id="transcript" class="mt-3 w-full border rounded-lg p-2" rows="2" placeholder="Or type here…"></textarea>
+      <div class="mt-3 flex gap-2">
+        <button id="quickParseBtn" class="px-3 py-2 rounded-lg bg-gray-800 text-white">Add from Text</button>
+        <button id="clearTextBtn" class="px-3 py-2 rounded-lg bg-gray-200">Clear</button>
+      </div>
+    </div>
+
+    <!-- Manual add form (fast fallback) -->
+    <div class="mb-4 p-4 bg-white rounded-xl shadow">
+      <h2 class="font-semibold mb-2">Add single item</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <input id="desc" class="border rounded-lg p-2" placeholder="Description (e.g., 10W-30 Motor Oil (qt))" />
+        <input id="qty" type="number" step="0.1" class="border rounded-lg p-2" placeholder="Quantity" />
+        <select id="type" class="border rounded-lg p-2">
+          <option>Tool</option>
+          <option>Part</option>
+          <option>Fluid</option>
+          <option>Other</option>
+        </select>
+        <input id="notes" class="border rounded-lg p-2" placeholder="Notes (optional)" />
+      </div>
+      <button id="addBtn" class="mt-3 px-4 py-2 rounded-xl bg-blue-600 text-white">Add to Batch</button>
+    </div>
+
+    <!-- Batch table -->
+    <div class="mb-4 p-4 bg-white rounded-xl shadow">
+      <h2 class="font-semibold mb-3">Pending items</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="batchTable">
+          <thead>
+            <tr class="text-left border-b">
+              <th class="py-2 pr-4">Description</th>
+              <th class="py-2 pr-4">Quantity</th>
+              <th class="py-2 pr-4">Type</th>
+              <th class="py-2 pr-4">Notes</th>
+              <th class="py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="batchBody"></tbody>
+        </table>
+      </div>
+      <div class="mt-3 flex items-center gap-2">
+        <button id="sendBtn" class="px-4 py-2 rounded-xl bg-green-600 text-white">Send to Airtable</button>
+        <button id="clearBtn" class="px-4 py-2 rounded-xl bg-gray-200">Clear Batch</button>
+        <span id="status" class="text-sm text-gray-600"></span>
+      </div>
+    </div>
+
+    <p class="text-xs text-gray-500">
+      Tip: The page never stores your data. Your items go directly to your secure proxy, which forwards to Zapier.
+    </p>
+  </div>
+
+  <script>
+    // ========= State =========
+    const batch = [];
+    const batchBody = document.getElementById('batchBody');
+    const statusEl = document.getElementById('status');
+
+    function render() {
+      batchBody.innerHTML = '';
+      batch.forEach((row, i) => {
+        const tr = document.createElement('tr');
+        tr.className = "border-b";
+        tr.innerHTML = `
+          <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Description}"></td>
+          <td class="py-2 pr-4"><input type="number" step="0.1" class="w-24 p-1 border rounded" value="${row.Quantity}"></td>
+          <td class="py-2 pr-4">
+            <select class="p-1 border rounded">
+              <option ${row.Type==='Tool'?'selected':''}>Tool</option>
+              <option ${row.Type==='Part'?'selected':''}>Part</option>
+              <option ${row.Type==='Fluid'?'selected':''}>Fluid</option>
+              <option ${row.Type==='Other'?'selected':''}>Other</option>
+            </select>
+          </td>
+          <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Notes||''}"></td>
+          <td class="py-2">
+            <button class="px-3 py-1 rounded bg-red-600 text-white">Delete</button>
+          </td>
+        `;
+        // wire up edit + delete
+        const inputs = tr.querySelectorAll('input, select');
+        inputs[0].addEventListener('input', e => batch[i].Description = e.target.value);
+        inputs[1].addEventListener('input', e => batch[i].Quantity = Number(e.target.value || 0));
+        inputs[2].addEventListener('change', e => batch[i].Type = e.target.value);
+        inputs[3].addEventListener('input', e => batch[i].Notes = e.target.value);
+        tr.querySelector('button').addEventListener('click', () => { batch.splice(i,1); render(); });
+        batchBody.appendChild(tr);
+      });
+    }
+
+    // ========= Add single =========
+    document.getElementById('addBtn').addEventListener('click', () => {
+      const desc = document.getElementById('desc').value.trim();
+      const qty = Number(document.getElementById('qty').value || 0);
+      const type = document.getElementById('type').value;
+      const notes = document.getElementById('notes').value.trim();
+
+      if (!desc || !qty) {
+        alert('Description and Quantity are required.');
+        return;
+      }
+      batch.push({ Description: desc, Quantity: qty, Type: type, Notes: notes });
+      document.getElementById('desc').value = '';
+      document.getElementById('qty').value = '';
+      document.getElementById('notes').value = '';
+      render();
+    });
+
+    // ========= Quick parse from text =========
+    // Accepts lines like:
+    // "Rubber Mallet | 2.0 | Tool |"
+    // "10W-30 Motor Oil (qt) | 2 | Fluid |"
+    // If user pastes rough text, we try to guess basic patterns too.
+    function parseLine(line) {
+      // primary: pipe-separated
+      if (line.includes('|')) {
+        const [d,q,t,n] = line.split('|').map(s => s.trim());
+        return {
+          Description: d || '',
+          Quantity: Number(q || 0),
+          Type: (t || 'Other'),
+          Notes: n || ''
+        };
+      }
+      // naive fallback: "2 quarts of 10W-30 motor oil (Fluid)"
+      // Try to pull a leading number as quantity; guess Type by keywords.
+      const qtyMatch = line.match(/(^|\s)(\d+(\.\d+)?)(?=\s|$)/);
+      const qty = qtyMatch ? Number(qtyMatch[2]) : 1;
+      let type = 'Other';
+      const s = line.toLowerCase();
+      if (s.includes('oil') || s.includes('coolant') || s.includes('antifreeze') || s.includes('fluid')) type = 'Fluid';
+      else if (s.includes('wrench') || s.includes('drill') || s.includes('mallet') || s.includes('charger')) type = 'Tool';
+      else if (s.includes('plug') || s.includes('fender') || s.includes('filter') || s.includes('belt')) type = 'Part';
+
+      // strip the quantity token from description if it looks like a leading count
+      let desc = line.trim();
+      if (qtyMatch && qtyMatch.index !== undefined) {
+        const start = qtyMatch.index;
+        const end = start + qtyMatch[0].length;
+        // remove matched chunk and “of” if follows
+        desc = (line.slice(0, start) + line.slice(end)).replace(/\bof\b/i, '').replace(/\s{2,}/g,' ').trim();
+      }
+      return { Description: desc, Quantity: qty, Type: type, Notes: '' };
+    }
+
+    document.getElementById('quickParseBtn').addEventListener('click', () => {
+      const text = document.getElementById('transcript').value.trim();
+      if (!text) return;
+      text.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
+        const row = parseLine(line);
+        if (row.Description) batch.push(row);
+      });
+      render();
+    });
+
+    document.getElementById('clearTextBtn').addEventListener('click', () => {
+      document.getElementById('transcript').value = '';
+    });
+
+    // ========= Speech-to-text =========
+    const micBtn = document.getElementById('micBtn');
+    const micStatus = document.getElementById('micStatus');
+    let rec;
+    if ('webkitSpeechRecognition' in window) {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      rec = new SR();
+      rec.lang = 'en-US';
+      rec.interimResults = true;
+      rec.continuous = true;
+
+      rec.onstart = () => micStatus.textContent = 'listening…';
+      rec.onerror = e => micStatus.textContent = 'error: ' + e.error;
+      rec.onend = () => micStatus.textContent = 'idle';
+      rec.onresult = (e) => {
+        let finalText = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalText += t + '\n';
+        }
+        if (finalText) {
+          const existing = document.getElementById('transcript').value;
+          document.getElementById('transcript').value = (existing + '\n' + finalText).trim();
+        }
+      };
+
+      micBtn.addEventListener('click', () => {
+        if (micStatus.textContent.startsWith('listening')) {
+          rec.stop();
+        } else {
+          rec.start();
+        }
+      });
+    } else {
+      micBtn.disabled = true;
+      micStatus.textContent = 'speech not supported in this browser';
+    }
+
+    // ========= Send to proxy =========
+    document.getElementById('sendBtn').addEventListener('click', async () => {
+      if (!batch.length) { alert('No items in batch.'); return; }
+      statusEl.textContent = 'Sending…';
+      try {
+        const res = await fetch('https://garagezap.itsnatemcm.workers.dev/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Inventory-Secret': 'dontShareMEpass!@*^$!@#seXY69' // must match serverless secret
+          },
+          body: JSON.stringify(batch)
+        });
+        if (!res.ok) throw new Error('Proxy error ' + res.status);
+        const data = await res.json().catch(()=>({}));
+        statusEl.textContent = '✅ Sent! ' + (data.message || '');
+        // clear only on success:
+        batch.length = 0;
+        render();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = '❌ Failed: ' + err.message;
+      }
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      batch.length = 0;
+      render();
+    });
+  </script>
+</body>
+</html>
