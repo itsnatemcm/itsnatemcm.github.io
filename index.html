@@ -131,52 +131,8 @@
       render();
     });
 
-    // ========= Quick parse from text =========
-    // Accepts lines like:
-    // "Rubber Mallet | 2.0 | Tool |"
-    // "10W-30 Motor Oil (qt) | 2 | Fluid |"
-    // If user pastes rough text, we try to guess basic patterns too.
-    function parseLine(line) {
-      // primary: pipe-separated
-      if (line.includes('|')) {
-        const [d,q,t,n] = line.split('|').map(s => s.trim());
-        return {
-          Description: d || '',
-          Quantity: Number(q || 0),
-          Type: (t || 'Other'),
-          Notes: n || ''
-        };
-      }
-      // naive fallback: "2 quarts of 10W-30 motor oil (Fluid)"
-      // Try to pull a leading number as quantity; guess Type by keywords.
-      const qtyMatch = line.match(/(^|\s)(\d+(\.\d+)?)(?=\s|$)/);
-      const qty = qtyMatch ? Number(qtyMatch[2]) : 1;
-      let type = 'Other';
-      const s = line.toLowerCase();
-      if (s.includes('oil') || s.includes('coolant') || s.includes('antifreeze') || s.includes('fluid')) type = 'Fluid';
-      else if (s.includes('wrench') || s.includes('drill') || s.includes('mallet') || s.includes('charger')) type = 'Tool';
-      else if (s.includes('plug') || s.includes('fender') || s.includes('filter') || s.includes('belt')) type = 'Part';
+   
 
-      // strip the quantity token from description if it looks like a leading count
-      let desc = line.trim();
-      if (qtyMatch && qtyMatch.index !== undefined) {
-        const start = qtyMatch.index;
-        const end = start + qtyMatch[0].length;
-        // remove matched chunk and “of” if follows
-        desc = (line.slice(0, start) + line.slice(end)).replace(/\bof\b/i, '').replace(/\s{2,}/g,' ').trim();
-      }
-      return { Description: desc, Quantity: qty, Type: type, Notes: '' };
-    }
-
-    document.getElementById('quickParseBtn').addEventListener('click', () => {
-      const text = document.getElementById('transcript').value.trim();
-      if (!text) return;
-      text.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
-        const row = parseLine(line);
-        if (row.Description) batch.push(row);
-      });
-      render();
-    });
 
     document.getElementById('clearTextBtn').addEventListener('click', () => {
       document.getElementById('transcript').value = '';
