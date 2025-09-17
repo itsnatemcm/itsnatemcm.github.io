@@ -46,29 +46,26 @@
       <button id="addBtn" class="mt-3 px-4 py-2 rounded-xl bg-blue-600 text-white">Add to Batch</button>
     </div>
 
-    <!-- Batch table -->
-    <div class="mb-4 p-4 bg-white rounded-xl shadow">
-      <h2 class="font-semibold mb-3">Pending items</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm" id="batchTable">
-          <thead>
-            <tr class="text-left border-b">
-              <th class="py-2 pr-4">Description</th>
-              <th class="py-2 pr-4">Quantity</th>
-              <th class="py-2 pr-4">Type</th>
-              <th class="py-2 pr-4">Notes</th>
-              <th class="py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="batchBody"></tbody>
-        </table>
-      </div>
-      <div class="mt-3 flex items-center gap-2">
-        <button id="sendBtn" class="px-4 py-2 rounded-xl bg-green-600 text-white">Send to Airtable</button>
-        <button id="clearBtn" class="px-4 py-2 rounded-xl bg-gray-200">Clear Batch</button>
-        <span id="status" class="text-sm text-gray-600"></span>
-      </div>
-    </div>
+    <!-- Batch queue (AI-only; raw text blocks) -->
+<div class="mb-4 p-4 bg-white rounded-xl shadow">
+  <h2 class="font-semibold mb-3">Pending (raw, unparsed)</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" id="batchTable">
+      <thead>
+        <tr class="text-left border-b">
+          <th class="py-2 pr-4">Rant / Description (raw)</th>
+          <th class="py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="batchBody"></tbody>
+    </table>
+  </div>
+  <div class="mt-3 flex items-center gap-2">
+    <button id="sendBtn" class="px-4 py-2 rounded-xl bg-green-600 text-white">Send to Airtable</button>
+    <button id="clearBtn" class="px-4 py-2 rounded-xl bg-gray-200">Clear Queue</button>
+    <span id="status" class="text-sm text-gray-600"></span>
+  </div>
+</div>
 
     <p class="text-xs text-gray-500">
       Tip: The page never stores your data. Your items go directly to your secure proxy, which forwards to Zapier.
@@ -76,87 +73,63 @@
   </div>
 
   <script>
-  // ========= State =========
-  const batch = [];
+  // ======= Config (fill these in) =======
+  const WORKER_URL = 'https://garagezap.itsnatemcm.workers.dev/'; // include https:// and trailing slash
+  const SHARED_SECRET = 'YOUR_ROTATED_SHARED_SECRET';             // rotate if exposed
+
+  // ======= State =======
+  const batch = []; // array of { text: string }
   const batchBody = document.getElementById('batchBody');
   const statusEl = document.getElementById('status');
 
+  // ======= Render queue (Description-only, long-text friendly) =======
   function render() {
     batchBody.innerHTML = '';
     batch.forEach((row, i) => {
       const tr = document.createElement('tr');
-      tr.className = "border-b";
-      tr.innerHTML = `
-        <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Description ?? ''}"></td>
-        <td class="py-2 pr-4"><input type="number" step="0.1" class="w-24 p-1 border rounded" value="${row.Quantity ?? ''}"></td>
-        <td class="py-2 pr-4">
-          <select class="p-1 border rounded">
-            <option ${row.Type==='Tool'?'selected':''}>Tool</option>
-            <option ${row.Type==='Part'?'selected':''}>Part</option>
-            <option ${row.Type==='Fluid'?'selected':''}>Fluid</option>
-            <option ${row.Type==='Other'?'selected':''}>Other</option>
-          </select>
-        </td>
-        <td class="py-2 pr-4"><input class="w-full p-1 border rounded" value="${row.Notes ?? ''}"></td>
-        <td class="py-2">
-          <button class="px-3 py-1 rounded bg-red-600 text-white">Delete</button>
-        </td>
-      `;
-      // wire up edit + delete
-      const inputs = tr.querySelectorAll('input, select');
-      inputs[0].addEventListener('input', e => batch[i].Description = e.target.value);
-      inputs[1].addEventListener('input', e => {
-        const v = e.target.value;
-        batch[i].Quantity = v === '' ? '' : Number(v);
-      });
-      inputs[2].addEventListener('change', e => batch[i].Type = e.target.value);
-      inputs[3].addEventListener('input', e => batch[i].Notes = e.target.value);
-      tr.querySelector('button').addEventListener('click', () => { batch.splice(i,1); render(); });
+      tr.className = 'border-b align-top';
+
+      // long text area: editable, wraps, scrolls if very long
+      const textCell = document.createElement('td');
+      textCell.className = 'py-2 pr-4 w-full';
+      const ta = document.createElement('textarea');
+      ta.className = 'w-full p-2 border rounded text-sm whitespace-pre-wrap break-words';
+      ta.rows = Math.min(10, Math.max(3, Math.ceil((row.text.length || 40) / 60))); // auto-ish height
+      ta.value = row.text || '';
+      ta.addEventListener('input', e => batch[i].text = e.target.value);
+      textCell.appendChild(ta);
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'py-2';
+      const del = document.createElement('button');
+      del.className = 'px-3 py-1 rounded bg-red-600 text-white';
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => { batch.splice(i, 1); render(); });
+      actionsCell.appendChild(del);
+
+      tr.appendChild(textCell);
+      tr.appendChild(actionsCell);
       batchBody.appendChild(tr);
     });
   }
 
-  // ========= Add single =========
+  // ======= “Add single item” (now raw-only; uses Description field only) =======
   document.getElementById('addBtn').addEventListener('click', () => {
-    const desc = document.getElementById('desc').value.trim();
-    const qtyRaw = document.getElementById('qty').value;
-    const qty = qtyRaw === '' ? '' : Number(qtyRaw);
-    const type = document.getElementById('type').value;
-    const notes = document.getElementById('notes').value.trim();
-
-    if (!desc) {
-      alert('Description is required.');
-      return;
-    }
-    // Quantity optional here; AI can infer if blank
-    batch.push({ Description: desc, Quantity: qty, Type: type, Notes: notes });
-    document.getElementById('desc').value = '';
-    document.getElementById('qty').value = '';
-    document.getElementById('notes').value = '';
+    const descEl = document.getElementById('desc'); // we keep your existing #desc input
+    const raw = (descEl.value || '').trim();
+    if (!raw) { alert('Type something in Description.'); return; }
+    batch.push({ text: raw });
+    descEl.value = '';
+    // ignore qty/type/notes fields entirely (AI will infer)
     render();
   });
 
-  // ========= Add from Text (UNPARSED) =========
-  // Takes whatever is in the textarea and adds each line (or comma-separated chunk) as a raw item.
+  // ======= Add from Text (UNPARSED): push the WHOLE transcript as one block =======
   document.getElementById('quickParseBtn').addEventListener('click', () => {
-    const text = document.getElementById('transcript').value.trim();
+    const text = (document.getElementById('transcript').value || '').trim();
     if (!text) return;
-
-    // Split by newlines first; if single line, also split by commas
-    let lines = text.split('\n').map(s => s.trim()).filter(Boolean);
-    if (lines.length === 1) {
-      lines = text.split(',').map(s => s.trim()).filter(Boolean);
-    }
-
-    for (const line of lines) {
-      batch.push({
-        Description: line,   // raw, unparsed
-        Quantity: '',        // leave blank; AI will infer
-        Type: 'Other',       // placeholder; AI will infer
-        Notes: ''            // empty
-      });
-    }
-    // Optionally clear the textarea after adding to batch
+    // Do NOT split by commas/newlines. Treat it as one rant block.
+    batch.push({ text });
     document.getElementById('transcript').value = '';
     render();
   });
@@ -165,31 +138,13 @@
     document.getElementById('transcript').value = '';
   });
 
-  // ========= Build raw text from batch for AI =========
-  // We turn each pending row into a natural-sounding phrase to help AI:
-  // - If Quantity present: "2 Rubber Mallet"
-  // - If Type present and not Other: append "(Tool)" hint
-  // - If Notes present: append as trailing note
+  // ======= Build raw text for AI (join all blocks) =======
   function buildRawTextFromBatch() {
-    const parts = [];
-    for (const r of batch) {
-      const desc = (r.Description || '').trim();
-      if (!desc) continue;
-
-      const qty = (r.Quantity === '' || r.Quantity === null || typeof r.Quantity === 'undefined')
-        ? '' : String(r.Quantity);
-
-      const type = r.Type && r.Type !== 'Other' ? ` (${r.Type})` : '';
-      const notes = r.Notes ? `, ${r.Notes}` : '';
-
-      // e.g., "2 Rubber Mallet (Tool), half used"
-      const phrase = `${qty ? qty + ' ' : ''}${desc}${type}${notes}`;
-      parts.push(phrase.trim());
-    }
-    return parts.join(', ');
+    // Use double newlines to separate blocks to preserve context
+    return batch.map(x => (x.text || '').trim()).filter(Boolean).join('\n\n');
   }
 
-  // ========= Speech-to-text =========
+  // ======= Speech-to-text (unchanged, fills the transcript box) =======
   const micBtn = document.getElementById('micBtn');
   const micStatus = document.getElementById('micStatus');
   let rec;
@@ -210,55 +165,45 @@
         if (e.results[i].isFinal) finalText += t + '\n';
       }
       if (finalText) {
-        const existing = document.getElementById('transcript').value;
-        document.getElementById('transcript').value = (existing + '\n' + finalText).trim();
+        const box = document.getElementById('transcript');
+        box.value = (box.value + '\n' + finalText).trim();
       }
     };
 
     micBtn.addEventListener('click', () => {
-      if (micStatus.textContent.startsWith('listening')) {
-        rec.stop();
-      } else {
-        rec.start();
-      }
+      if (micStatus.textContent.startsWith('listening')) rec.stop();
+      else rec.start();
     });
   } else {
     micBtn.disabled = true;
     micStatus.textContent = 'speech not supported in this browser';
   }
 
-  // ========= Send to proxy (AI parses) =========
-  // If there are items in the batch, we send the batch-as-text.
-  // Otherwise, we fall back to the textarea contents.
+  // ======= Send to Worker (AI parses EVERYTHING) =======
   document.getElementById('sendBtn').addEventListener('click', async () => {
     statusEl.textContent = 'Sending for AI parsing…';
 
-    let text = '';
-    if (batch.length > 0) {
-      text = buildRawTextFromBatch();
-    } else {
-      text = document.getElementById('transcript').value.trim();
-    }
-
+    // Prefer queued blocks; otherwise fall back to transcript
+    let text = batch.length ? buildRawTextFromBatch() : (document.getElementById('transcript').value || '').trim();
     if (!text) {
-      alert('Add items to the batch or type/dictate items first.');
+      alert('Add a rant to the queue or dictate/type in the box first.');
       statusEl.textContent = '';
       return;
     }
 
     try {
-      const res = await fetch('https://garagezap.itsnatemcm.workers.dev/', {
+      const res = await fetch(WORKER_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Inventory-Secret': 'dontShareMEpass!@*^$!@#seXY69'
+          'X-Inventory-Secret': SHARED_SECRET
+          // Tip: add 'X-Preview': '1' if you want the Worker to return the parsed rows without pushing to Airtable
         },
-        body: JSON.stringify(text)  // always a STRING so the Worker runs AI
+        body: JSON.stringify(text)  // ALWAYS a single string → Worker/AI does all parsing
       });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(await res.text().catch(()=>res.statusText));
+      const data = await res.json().catch(() => ({}));
       statusEl.textContent = '✅ Sent! ' + (data.message || '');
-
       // Clear UI on success
       document.getElementById('transcript').value = '';
       batch.length = 0;
