@@ -28,24 +28,7 @@
         <button id="clearTextBtn" class="px-3 py-2 rounded-lg bg-gray-200">Clear</button>
       </div>
     </div>
-    <script>
-      // ...keep the rest of your script...
     
-      // ======= Manual add (optional; only if the UI is present) =======
-      const addBtn = document.getElementById('addBtn');
-      if (addBtn) {
-        addBtn.addEventListener('click', () => {
-          const descEl = document.getElementById('desc');
-          const raw = (descEl?.value || '').trim();
-          if (!raw) { alert('Type something in Description.'); return; }
-          batch.push({ text: raw });   // AI-only flow: store as raw block
-          if (descEl) descEl.value = '';
-          render();
-        });
-      }
-
-  // ...keep the rest of your script...
-</script>
     <!-- Manual add form (fast fallback)
     <div class="mb-4 p-4 bg-white rounded-xl shadow">
       <h2 class="font-semibold mb-2">Add single item</h2>
@@ -59,7 +42,7 @@
           <option>Other</option>
         </select>
         <input id="notes" class="border rounded-lg p-2" placeholder="Notes (optional)" />
-      </div> -->
+      </div>
       <button id="addBtn" class="mt-3 px-4 py-2 rounded-xl bg-blue-600 text-white">Add to Batch</button>
     </div> -->
 
@@ -129,7 +112,7 @@
       batchBody.appendChild(tr);
     });
   }
-
+  /*
   // ======= “Add single item” (now raw-only; uses Description field only) =======
   document.getElementById('addBtn').addEventListener('click', () => {
     const descEl = document.getElementById('desc'); // we keep your existing #desc input
@@ -139,7 +122,7 @@
     descEl.value = '';
     // ignore qty/type/notes fields entirely (AI will infer)
     render();
-  });
+  });*/
 
   // ======= Add from Text (UNPARSED): push the WHOLE transcript as one block =======
   document.getElementById('quickParseBtn').addEventListener('click', () => {
