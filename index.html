@@ -247,11 +247,11 @@
     }
 
     try {
-      const res = await fetch('YOUR_PROXY_URL_HERE', {
+      const res = await fetch('garagezap.itsnatemcm.workers.dev', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Inventory-Secret': 'YOUR_SHARED_SECRET'
+          'X-Inventory-Secret': 'dontShareMEpass!@*^$!@#seXY69'
         },
         body: JSON.stringify(text)  // always a STRING so the Worker runs AI
       });
