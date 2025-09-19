@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Garage Inventory — Voice to Airtable</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CDN for quick styling (optional) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gray-50 text-gray-900">
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4">Garage Inventory — Voice to Airtable</h1>
+
+    <!-- Voice capture -->
+    <div class="mb-4 p-4 bg-white rounded-xl shadow">
+      <div class="flex items-center gap-3">
+        <button id="micBtn" class="px-4 py-2 rounded-xl bg-black text-white">
+          🎙️ Start Dictation
+        </button>
+        <span id="micStatus" class="text-sm text-gray-600">idle</span>
+      </div>
+      <p class="text-sm text-gray-600 mt-3">
+        List off the junk in your shop like “two quarts of 10W-30 motor oil, a couple of NGK Spark Plugs, and a Rubber mallet”
+      </p>
+      <textarea id="transcript" class="mt-3 w-full border rounded-lg p-2" rows="2" placeholder="Or type here…"></textarea>
+      <div class="mt-3 flex gap-2">
+        <button id="quickParseBtn" class="px-3 py-2 rounded-lg bg-gray-800 text-white">Add from Text</button>
+        <button id="clearTextBtn" class="px-3 py-2 rounded-lg bg-gray-200">Clear</button>
+      </div>
+    </div>
+    
+    <!-- Manual add form (fast fallback)
+    <div class="mb-4 p-4 bg-white rounded-xl shadow">
+      <h2 class="font-semibold mb-2">Add single item</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <input id="desc" class="border rounded-lg p-2" placeholder="Description (e.g., 10W-30 Motor Oil (qt))" />
+        <input id="qty" type="number" step="0.1" class="border rounded-lg p-2" placeholder="Quantity" />
+        <select id="type" class="border rounded-lg p-2">
+          <option>Tool</option>
+          <option>Part</option>
+          <option>Fluid</option>
+          <option>Other</option>
+        </select>
+        <input id="notes" class="border rounded-lg p-2" placeholder="Notes (optional)" />
+      </div>
+      <button id="addBtn" class="mt-3 px-4 py-2 rounded-xl bg-blue-600 text-white">Add to Batch</button>
+    </div> -->
+
+    <!-- Batch queue (AI-only; raw text blocks) -->
+<div class="mb-4 p-4 bg-white rounded-xl shadow">
+  <h2 class="font-semibold mb-3">Pending (raw, unparsed)</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" id="batchTable">
+      <thead>
+        <tr class="text-left border-b">
+          <th class="py-2 pr-4">Rant / Description (raw)</th>
+          <th class="py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="batchBody"></tbody>
+    </table>
+  </div>
+  <div class="mt-3 flex items-center gap-2">
+    <button id="sendBtn" class="px-4 py-2 rounded-xl bg-green-600 text-white">Send to Airtable</button>
+    <button id="clearBtn" class="px-4 py-2 rounded-xl bg-gray-200">Clear Queue</button>
+    <span id="status" class="text-sm text-gray-600"></span>
+  </div>
+</div>
+
+    <p class="text-xs text-gray-500">
+      Tip: The page never stores your data. Your items go directly to your secure proxy, which forwards to Zapier.
+    </p>
+  </div>
+
+  <script>
+  // ======= Config (fill these in) =======
+  const WORKER_URL = 'https://garagezap.itsnatemcm.workers.dev/'; // include https:// and trailing slash
+  const SHARED_SECRET = 'dontShareMEpass!@*^$!@#seXY69';             // rotate if exposed
+
+  // ======= State =======
+  const batch = []; // array of { text: string }
+  const batchBody = document.getElementById('batchBody');
+  const statusEl = document.getElementById('status');
+
+  // ======= Render queue (Description-only, long-text friendly) =======
+  function render() {
+    batchBody.innerHTML = '';
+    batch.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-b align-top';
+
+      // long text area: editable, wraps, scrolls if very long
+      const textCell = document.createElement('td');
+      textCell.className = 'py-2 pr-4 w-full';
+      const ta = document.createElement('textarea');
+      ta.className = 'w-full p-2 border rounded text-sm whitespace-pre-wrap break-words';
+      ta.rows = Math.min(10, Math.max(3, Math.ceil((row.text.length || 40) / 60))); // auto-ish height
+      ta.value = row.text || '';
+      ta.addEventListener('input', e => batch[i].text = e.target.value);
+      textCell.appendChild(ta);
+
+      const actionsCell = document.createElement('td');
+      actionsCell.className = 'py-2';
+      const del = document.createElement('button');
+      del.className = 'px-3 py-1 rounded bg-red-600 text-white';
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => { batch.splice(i, 1); render(); });
+      actionsCell.appendChild(del);
+
+      tr.appendChild(textCell);
+      tr.appendChild(actionsCell);
+      batchBody.appendChild(tr);
+    });
+  }
+  /*
+  // ======= “Add single item” (now raw-only; uses Description field only) =======
+  document.getElementById('addBtn').addEventListener('click', () => {
+    const descEl = document.getElementById('desc'); // we keep your existing #desc input
+    const raw = (descEl.value || '').trim();
+    if (!raw) { alert('Type something in Description.'); return; }
+    batch.push({ text: raw });
+    descEl.value = '';
+    // ignore qty/type/notes fields entirely (AI will infer)
+    render();
+  });*/
+
+  // ======= Add from Text (UNPARSED): push the WHOLE transcript as one block =======
+  document.getElementById('quickParseBtn').addEventListener('click', () => {
+    const text = (document.getElementById('transcript').value || '').trim();
+    if (!text) return;
+    // Do NOT split by commas/newlines. Treat it as one rant block.
+    batch.push({ text });
+    document.getElementById('transcript').value = '';
+    render();
+  });
+
+  document.getElementById('clearTextBtn').addEventListener('click', () => {
+    document.getElementById('transcript').value = '';
+  });
+
+  // ======= Build raw text for AI (join all blocks) =======
+  function buildRawTextFromBatch() {
+    // Use double newlines to separate blocks to preserve context
+    return batch.map(x => (x.text || '').trim()).filter(Boolean).join('\n\n');
+  }
+
+  // ======= Speech-to-text (unchanged, fills the transcript box) =======
+  const micBtn = document.getElementById('micBtn');
+  const micStatus = document.getElementById('micStatus');
+  let rec;
+  if ('webkitSpeechRecognition' in window) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    rec = new SR();
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.continuous = true;
+
+    rec.onstart = () => micStatus.textContent = 'listening…';
+    rec.onerror = e => micStatus.textContent = 'error: ' + e.error;
+    rec.onend = () => micStatus.textContent = 'idle';
+    rec.onresult = (e) => {
+      let finalText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t + '\n';
+      }
+      if (finalText) {
+        const box = document.getElementById('transcript');
+        box.value = (box.value + '\n' + finalText).trim();
+      }
+    };
+
+    micBtn.addEventListener('click', () => {
+      if (micStatus.textContent.startsWith('listening')) rec.stop();
+      else rec.start();
+    });
+  } else {
+    micBtn.disabled = true;
+    micStatus.textContent = 'speech not supported in this browser';
+  }
+
+  // ======= Send to Worker (AI parses EVERYTHING) =======
+  document.getElementById('sendBtn').addEventListener('click', async () => {
+    statusEl.textContent = 'Sending for AI parsing…';
+
+    // Prefer queued blocks; otherwise fall back to transcript
+    let text = batch.length ? buildRawTextFromBatch() : (document.getElementById('transcript').value || '').trim();
+    if (!text) {
+      alert('Add a rant to the queue or dictate/type in the box first.');
+      statusEl.textContent = '';
+      return;
+    }
+
+    try {
+      const res = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Inventory-Secret': SHARED_SECRET
+          // Tip: add 'X-Preview': '1' if you want the Worker to return the parsed rows without pushing to Airtable
+        },
+        body: JSON.stringify(text)  // ALWAYS a single string → Worker/AI does all parsing
+      });
+      if (!res.ok) throw new Error(await res.text().catch(()=>res.statusText));
+      const data = await res.json().catch(() => ({}));
+      statusEl.textContent = '✅ Sent! ' + (data.message || '');
+      // Clear UI on success
+      document.getElementById('transcript').value = '';
+      batch.length = 0;
+      render();
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = '❌ Failed: ' + err.message;
+    }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    batch.length = 0;
+    render();
+  });
+</script>
+
+</body>
+</html>

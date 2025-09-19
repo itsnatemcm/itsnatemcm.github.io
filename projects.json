@@ -1,0 +1,21 @@
+[
+    {
+      "title": "Garage Inventory — Voice → AI → Airtable",
+      "slug": "garage-inventory-helper",
+      "description": "Dictate a rant; AI splits, cleans, and upserts into Airtable via Cloudflare Worker + Zap.",
+      "demo": "./garage-inventory-voice/",
+      "repo": "https://github.com/itsnatemcm/garage-inventory-helper",
+      "cover": "assets/demo.gif",
+      "tags": ["AI", "Airtable", "Cloudflare", "Web"]
+    },
+    {
+      "title": "Another Project",
+      "slug": "another-project",
+      "description": "Short one-liner about what it does.",
+      "demo": "./another-project/",
+      "repo": "https://github.com/itsnatemcm/another-project",
+      "cover": "",
+      "tags": ["Tool"]
+    }
+  ]
+  
