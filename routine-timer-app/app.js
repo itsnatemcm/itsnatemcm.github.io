@@ -55,7 +55,7 @@ function runStage(stages, repeats) {
   remaining = stage.seconds;
 
   updateTimer(stage.label);
-
+  console.log(stages,repeats);
   clearInterval(timerInterval);
   timerInterval = setInterval(() => {
     remaining--;
