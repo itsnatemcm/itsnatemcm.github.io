@@ -4,12 +4,15 @@ let repeatCount = 0;
 let timerInterval = null;
 let remaining = 0;
 
+const API_BASE = "https://routineworker.itsnatemcm.workers.dev"; 
+
+
 async function getRoutine(category) {
-  const res = await fetch(`https://routineworker.itsnatemcm.workers.dev/routine?category=${category}`);
-  const routine = await res.json();
-  currentRoutine = routine;
-  stageIndex = 0;
-  repeatCount = 0;
+    const res = await fetch(`${API_BASE}/routine?category=${encodeURIComponent(category)}`);
+    const routine = await res.json();
+    currentRoutine = routine;
+    stageIndex = 0;
+    repeatCount = 0;
 
   document.getElementById("routine").innerHTML = `
     <h2>${routine.fields.Name}</h2>
@@ -61,13 +64,9 @@ function updateTimer(label) {
 }
 
 async function endRoutine() {
-  clearInterval(timerInterval);
-  document.getElementById("timer").innerHTML = "<h3>Done!</h3>";
-
-  // Mark complete in Airtable
-  await fetch("https://routineworker.itsnatemcm.workers.dev/complete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: currentRoutine.id })
-  });
-}
+    await fetch(`${API_BASE}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: currentRoutine.id })
+    });
+  }
