@@ -5,7 +5,7 @@ let timerInterval = null;
 let remaining = 0;
 
 async function getRoutine(category) {
-  const res = await fetch(`https://YOUR-WORKER-NAME.username.workers.dev/routine?category=${category}`);
+  const res = await fetch(`https://routineworker.itsnatemcm.workers.dev/routine?category=${category}`);
   const routine = await res.json();
   currentRoutine = routine;
   stageIndex = 0;
