@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Training Timer</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; background: #111; color: #eee; }
+    button { margin: 10px; padding: 12px 24px; font-size: 18px; border-radius: 8px; }
+    #routine, #timer { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Training Timer</h1>
+
+  <div>
+    <button onclick="getRoutine('Calisthenics')">Calisthenics</button>
+    <button onclick="getRoutine('Muay Thai')">Muay Thai</button>
+    <button onclick="getRoutine('Breathing')">Breathing</button>
+  </div>
+
+  <div id="routine"></div>
+  <div id="timer"></div>
+
+  <audio id="bell" src="bell.mp3" preload="auto"></audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
