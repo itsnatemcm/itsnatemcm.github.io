@@ -34,41 +34,63 @@ function startTimer() {
       }
     runStage(stages, repeats);
   }
-function runStage(stages, repeats) {
+  function runStage(stages, repeats) {
+    // Safety checks
     if (!Array.isArray(stages) || stages.length === 0) {
+      console.error("No stages provided");
       endRoutine();
       return;
     }
-    if (!repeats || repeats <= 0) repeats = 1; // default safety
   
+    // Always treat repeats as a positive integer
+    repeats = Number(repeats) || 1;
+  
+    // Reset counters if starting fresh
+    if (typeof stageIndex === "undefined") stageIndex = 0;
+    if (typeof remaining === "undefined") remaining = 0;
+  
+    // If all repeats are finished → stop
+    if (repeats <= 0) {
+      endRoutine();
+      return;
+    }
+  
+    // If we’ve run out of stages → start next repeat
     if (stageIndex >= stages.length) {
       stageIndex = 0;
-      repeatCount++;
-      if (repeatCount >= repeats) {
-        endRoutine();
-        return;
-      }
+      repeats--; // 🔑 decrease repeat count
+      console.log(`New repeat, ${repeats} left`);
+      runStage(stages, repeats);
+      return;
     }
   
-
-  const stage = stages[stageIndex];
-  remaining = stage.seconds;
-
-  updateTimer(stage.label);
-  console.log(stages,repeats);
-  clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    remaining--;
-    updateTimer(stage.label);
+    // Current stage
+    const stage = stages[stageIndex];
+    remaining = Number(stage.seconds) || 0;
     if (remaining <= 0) {
-      document.getElementById("bell").play();
+      console.error("Invalid stage duration:", stage);
       stageIndex++;
-      repeats--;
       runStage(stages, repeats);
+      return;
     }
-  }, 1000);
-}
-
+  
+    updateTimer(`${stage.label} (${repeats} repeats left)`);
+    console.log(`Stage ${stageIndex + 1}/${stages.length}, ${repeats} repeats left`);
+  
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      remaining--;
+      updateTimer(`${stage.label} (${repeats} repeats left)`);
+  
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        document.getElementById("bell").play();
+        stageIndex++;
+        runStage(stages, repeats);
+      }
+    }, 1000);
+  }
+  
 function updateTimer(label) {
   document.getElementById("timer").innerHTML = `
     <h3>${label}</h3>
