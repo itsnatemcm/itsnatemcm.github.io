@@ -65,7 +65,7 @@ async function endRoutine() {
   document.getElementById("timer").innerHTML = "<h3>Done!</h3>";
 
   // Mark complete in Airtable
-  await fetch("https://YOUR-WORKER-NAME.username.workers.dev/complete", {
+  await fetch("https://routineworker.itsnatemcm.workers.dev/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: currentRoutine.id })
