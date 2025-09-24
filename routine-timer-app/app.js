@@ -22,22 +22,33 @@ async function getRoutine(category) {
 }
 
 function startTimer() {
-  if (!currentRoutine) return;
-  const stages = JSON.parse(currentRoutine.fields.Stages);
-  const repeats = currentRoutine.fields.Repeats;
-
-  runStage(stages, repeats);
-}
-
-function runStage(stages, repeats) {
-  if (stageIndex >= stages.length) {
-    stageIndex = 0;
-    repeatCount++;
+    if (!currentRoutine) return;
     if (repeatCount >= repeats) {
+        console.log("Routine complete");
+        endRoutine();
+        return;
+      }
+    const stages = JSON.parse(currentRoutine.fields.Stages);
+    const repeats = Number(currentRoutine.fields.Repeats) || 1; // force number
+  
+    runStage(stages, repeats);
+  }
+function runStage(stages, repeats) {
+    if (!Array.isArray(stages) || stages.length === 0) {
       endRoutine();
       return;
     }
-  }
+    if (!repeats || repeats <= 0) repeats = 1; // default safety
+  
+    if (stageIndex >= stages.length) {
+      stageIndex = 0;
+      repeatCount++;
+      if (repeatCount >= repeats) {
+        endRoutine();
+        return;
+      }
+    }
+  
 
   const stage = stages[stageIndex];
   remaining = stage.seconds;
