@@ -25,7 +25,7 @@ function startTimer() {
     if (!currentRoutine) return;
     
     const stages = JSON.parse(currentRoutine.fields.Stages);
-    const repeats = Number(currentRoutine.fields.Repeats) || 1; // force number
+    const repeats = Int(currentRoutine.fields.Repeats);
     console.log(stages, repeats);
     if (repeatCount >= repeats) {
         console.log("Routine complete");
