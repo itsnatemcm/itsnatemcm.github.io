@@ -23,14 +23,14 @@ async function getRoutine(category) {
 
 function startTimer() {
     if (!currentRoutine) return;
+    
+    const stages = JSON.parse(currentRoutine.fields.Stages);
+    const repeats = Number(currentRoutine.fields.Repeats) || 1; // force number
     if (repeatCount >= repeats) {
         console.log("Routine complete");
         endRoutine();
         return;
       }
-    const stages = JSON.parse(currentRoutine.fields.Stages);
-    const repeats = Number(currentRoutine.fields.Repeats) || 1; // force number
-  
     runStage(stages, repeats);
   }
 function runStage(stages, repeats) {
