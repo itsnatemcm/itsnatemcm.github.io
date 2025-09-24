@@ -25,7 +25,7 @@ function startTimer() {
     if (!currentRoutine) return;
     
     const stages = JSON.parse(currentRoutine.fields.Stages);
-    const repeats = Int(currentRoutine.fields.Repeats);
+    const repeats = Number(currentRoutine.fields.Repeats) || 1; // force number
     console.log(stages, repeats);
     if (repeatCount >= repeats) {
         console.log("Routine complete");
@@ -43,7 +43,7 @@ function startTimer() {
     }
   
     // Always treat repeats as a positive integer
-    repeats = Number(repeats) || 1;
+    //repeats = Number(repeats) || 1;
   
     // Reset counters if starting fresh
     if (typeof stageIndex === "undefined") stageIndex = 0;
