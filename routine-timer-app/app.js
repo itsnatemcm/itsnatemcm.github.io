@@ -63,6 +63,7 @@ function runStage(stages, repeats) {
     if (remaining <= 0) {
       document.getElementById("bell").play();
       stageIndex++;
+      repeats--;
       runStage(stages, repeats);
     }
   }, 1000);
